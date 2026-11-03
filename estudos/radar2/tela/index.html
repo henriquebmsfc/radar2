@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar 2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Mesa de triagem: cabeçalho com o resumo do dia, depois uma pilha de fichas de canal para decidir (salvar ou descartar). */
+  :root {
+    --papel: #f4f5f7;
+    --ficha: #ffffff;
+    --tinta: #161a21;
+    --apagado: #5d6573;
+    --linha: #dfe2e8;
+    --acento: #2346c8;
+    --livre: #127a4a;   --livre-fundo: #e2f3ea;
+    --atencao: #9a5b00; --atencao-fundo: #fbf0dc;
+    --lotado: #b3261e;  --lotado-fundo: #fbe4e1;
+    --neutro-fundo: #eceef2;
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --corpo: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --papel: #111419; --ficha: #191d24; --tinta: #e8eaee; --apagado: #9aa2b0; --linha: #2b313b; --acento: #8ea4ff;
+      --livre: #5fd39a; --livre-fundo: #15301f; --atencao: #f0b45a; --atencao-fundo: #33270f;
+      --lotado: #ff8a80; --lotado-fundo: #3a1a18; --neutro-fundo: #232831; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --papel: #111419; --ficha: #191d24; --tinta: #e8eaee; --apagado: #9aa2b0; --linha: #2b313b; --acento: #8ea4ff;
+    --livre: #5fd39a; --livre-fundo: #15301f; --atencao: #f0b45a; --atencao-fundo: #33270f;
+    --lotado: #ff8a80; --lotado-fundo: #3a1a18; --neutro-fundo: #232831; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--papel); color: var(--tinta); font: 15px/1.5 var(--corpo); }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  .tudo { max-width: 1180px; margin: 0 auto; padding: 22px 18px 60px; display: grid; gap: 18px; }
+
+  header { display: grid; gap: 14px; }
+  .titulo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
+  .gerado { color: var(--apagado); }
+  .placar { display: flex; flex-wrap: wrap; gap: 10px; }
+  .placar div { background: var(--ficha); border: 1px solid var(--linha); border-radius: 8px; padding: 8px 14px; min-width: 120px; }
+  .placar b { display: block; font: 600 22px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+  .placar span { color: var(--apagado); font-size: 13px; }
+
+  .controles { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 0; border-top: 1px solid var(--linha); border-bottom: 1px solid var(--linha); }
+  .abas { display: flex; gap: 4px; background: var(--neutro-fundo); padding: 3px; border-radius: 8px; }
+  .abas button { border: 0; background: none; color: var(--apagado); font: 500 14px var(--corpo); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  .abas button[aria-pressed="true"] { background: var(--ficha); color: var(--tinta); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+  .abas .n { font-variant-numeric: tabular-nums; color: var(--apagado); margin-left: 4px; }
+  label.chave { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--tinta); }
+  select { font: 14px var(--corpo); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--linha); background: var(--ficha); color: var(--tinta); }
+  .aviso-salvar { color: var(--apagado); font-size: 13px; margin-left: auto; }
+
+  .lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(540px, 1fr)); gap: 14px; }
+  @media (max-width: 600px) { .lista { grid-template-columns: 1fr; } }
+  .vazio { color: var(--apagado); padding: 40px 0; text-align: center; }
+
+  article { background: var(--ficha); border: 1px solid var(--linha); border-radius: 10px; overflow: hidden; display: grid; grid-template-rows: auto auto 1fr auto; }
+  .cabeca { display: grid; grid-template-columns: 200px 1fr; gap: 14px; padding: 14px; }
+  @media (max-width: 600px) { .cabeca { grid-template-columns: 1fr; } }
+  .mini { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; object-fit: cover; background: var(--neutro-fundo); display: block; }
+  .nome { font: 600 20px/1.2 var(--display); margin: 0 0 4px; text-wrap: balance; }
+  .nome a { text-decoration: none; }
+  .nome a:hover { text-decoration: underline; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { font-size: 12.5px; padding: 1px 8px; border-radius: 10px; background: var(--neutro-fundo); color: var(--apagado); }
+  .chip.boa { background: var(--acento); color: var(--ficha); font-weight: 600; }
+  .chip.hoje { background: #d97706; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .numero { font: 600 26px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .numero small { font: 400 14px var(--corpo); color: var(--apagado); }
+  .sub { color: var(--apagado); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+  .copias { margin: 0 14px; padding: 8px 12px; border-radius: 6px; font-weight: 500; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .copias.livre { background: var(--livre-fundo); color: var(--livre); }
+  .copias.atencao { background: var(--atencao-fundo); color: var(--atencao); }
+  .copias.lotado { background: var(--lotado-fundo); color: var(--lotado); }
+  .copias.nao { background: var(--neutro-fundo); color: var(--apagado); }
+  .copias .quem { font-weight: 400; font-size: 13px; }
+
+  .linguas { margin: 8px 14px 0; display: grid; gap: 6px; }
+  .linguas .rotulo { font-size: 13px; color: var(--apagado); }
+  .linguas .lista-l { display: flex; flex-wrap: wrap; gap: 5px; }
+  .lg { font-size: 12.5px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .lg.livre { background: var(--livre-fundo); color: var(--livre); }
+  .lg.fraca { background: var(--neutro-fundo); color: var(--apagado); }
+  .lg.ocupada { background: var(--lotado-fundo); color: var(--lotado); text-decoration: line-through; }
+  .lg.erro { background: var(--neutro-fundo); color: var(--apagado); font-style: italic; }
+  .lg.nossa { outline: 1px solid var(--acento); }
+  .pedir { margin: 8px 14px 0; font-size: 13.5px; color: var(--apagado); }
+
+  .videos { list-style: none; margin: 0; padding: 10px 14px 4px; display: grid; gap: 6px; }
+  .videos li { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
+  .videos a { text-decoration: none; }
+  .videos a:hover { text-decoration: underline; }
+  .videos .v { color: var(--apagado); font-variant-numeric: tabular-nums; font-size: 13.5px; white-space: nowrap; }
+  details { padding: 2px 14px 8px; color: var(--apagado); font-size: 13.5px; }
+  summary { cursor: pointer; }
+
+  .acoes { display: flex; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--linha); margin-top: 6px; }
+  .acoes button { font: 600 14px var(--corpo); padding: 8px 16px; border-radius: 7px; cursor: pointer; border: 1px solid var(--linha); background: var(--ficha); color: var(--tinta); }
+  .acoes button.salvar { background: var(--acento); border-color: var(--acento); color: var(--ficha); }
+  .acoes button:hover { filter: brightness(0.95); }
+  .acoes .quando { margin-left: auto; align-self: center; color: var(--apagado); font-size: 13px; }
+  @media (prefers-reduced-motion: no-preference) { article { transition: opacity .2s; } }
+</style>
+</head>
+<body>
+<div class="tudo">
+  <header>
+    <div class="titulo">
+      <h1>Radar 2.0 · Oportunidades</h1>
+      <span class="gerado" id="gerado">carregando…</span>
+    </div>
+    <div class="placar" id="placar"></div>
+  </header>
+
+  <div class="controles">
+    <div class="abas" role="group" aria-label="Lista">
+      <button id="aba-decidir" aria-pressed="true" data-aba="decidir">Para decidir<span class="n"></span></button>
+      <button id="aba-salvo" aria-pressed="false" data-aba="salvo">Salvos<span class="n"></span></button>
+      <button id="aba-descartado" aria-pressed="false" data-aba="descartado">Descartados<span class="n"></span></button>
+    </div>
+    <label class="chave" for="so-novos"><input type="checkbox" id="so-novos"> Só os novos de hoje</label>
+    <label class="chave" for="so-boas"><input type="checkbox" id="so-boas"> Só as boas</label>
+    <label class="chave" for="sem-lotados"><input type="checkbox" id="sem-lotados" checked> Esconder formatos lotados</label>
+    <label class="chave" for="ordem">Ordem
+      <select id="ordem">
+        <option value="mediana">Mais views por vídeo</option>
+        <option value="livre">Menos copiados primeiro</option>
+        <option value="idade">Mais novos primeiro</option>
+      </select>
+    </label>
+    <span class="aviso-salvar" id="aviso-salvar"></span>
+  </div>
+
+  <div class="lista" id="lista"></div>
+</div>
+
+<script>
+const estado = { canais: [], decisoes: {}, aba: "decidir", db: null };
+
+function mil(n) {
+  if (n == null) return "?";
+  if (n >= 1e6) return (n / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi";
+  if (n >= 1e3) return Math.round(n / 1e3).toLocaleString("pt-BR") + " mil";
+  return n.toLocaleString("pt-BR");
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function copias(c) {
+  const n = c.irmaos.length;
+  if (!c.copias_conferidas) return { cls: "nao", txt: "Cópias ainda não conferidas", nivel: 1 };
+  if (n === 0) return { cls: "livre", txt: "Ninguém copiando ainda", nivel: 0 };
+  if (n <= 3) return { cls: "atencao", txt: `${n} ${n === 1 ? "canal novo" : "canais novos"} no mesmo formato`, nivel: 2 };
+  return { cls: "lotado", txt: `${n} canais novos no mesmo formato · lotado`, nivel: 3 };
+}
+
+function comoAchou(c) {
+  const nomes = { palavras: "pesquisa", recomendados: "recomendados ao lado de", radar1: "radar antigo" };
+  const vistos = new Set();
+  return c.achado_por.filter(a => { const k = a.metodo + a.termo; if (vistos.has(k)) return false; vistos.add(k); return true; })
+    .slice(0, 6).map(a => a.metodo === "palavras" ? `pesquisa “${esc(a.termo)}”` : a.metodo === "radar1" ? "radar antigo" : `recomendados de ${esc(a.termo)}`).join(" · ");
+}
+
+const NOMES_L = { pt: "Português", es: "Espanhol", fr: "Francês", de: "Alemão", it: "Italiano", ro: "Romeno", hr: "Croata",
+  pl: "Polonês", nl: "Holandês", sv: "Sueco", no: "Norueguês", da: "Dinamarquês", fi: "Finlandês", cs: "Tcheco",
+  sk: "Eslovaco", sl: "Esloveno", lt: "Lituano", lv: "Letão", et: "Estoniano", hu: "Húngaro", tr: "Turco",
+  "en-GB": "Inglês: Reino Unido", "en-CA": "Inglês: Canadá", "en-AU": "Inglês: Austrália", "en-IE": "Inglês: Irlanda",
+  "en-NZ": "Inglês: Nova Zelândia", "en-ZA": "Inglês: África do Sul", "es-MX": "Espanhol: México", "es-AR": "Espanhol: Argentina",
+  "es-CL": "Espanhol: Chile", "es-CO": "Espanhol: Colômbia", "pt-PT": "Português: Portugal", "fr-CA": "Francês: Quebec", "en-JP": "Inglês: Japão" };
+const ESTADO_L = { livre: "livre", fraca: "livre, pouco público", ocupada: "já copiado", erro: "erro na pesquisa" };
+
+function linguas(c, dec) {
+  const m = c.malandro;
+  if (!m) {
+    return dec?.acao === "salvo" ? `<p class="pedir">Malandro ainda não rodou neste canal. No terminal: <code>python3 scripts/radar2/malandro_salvos.py ${esc(c.id)}</code></p>` : "";
+  }
+  const ordem = { livre: 0, fraca: 1, erro: 2, ocupada: 3 };
+  const ls = Object.entries(m.linguas).sort((a, b) => ordem[a[1].estado] - ordem[b[1].estado]);
+  const livres = ls.filter(([, x]) => x.estado === "livre").length;
+  const fez2 = ["no", "da", "fi", "ro", "hr", "cs"].some(l => l in m.linguas);
+  const extra = Object.keys(m.linguas).some(l => l.includes("-")) ? " + países" : "";
+  const etapa = (fez2 ? "Análises 1 e 2" : "Análise 1 (8 principais línguas)") + extra;
+  return `<div class="linguas">
+    <span class="rotulo">Malandro, ${etapa} (${esc(m.data)}): ${livres} ${livres === 1 ? "língua livre" : "línguas livres"} com público</span>
+    <div class="lista-l">${ls.map(([l, x]) => `<span class="lg ${x.estado}${m.nossas.includes(l) ? " nossa" : ""}" title="${NOMES_L[l] || l}: ${ESTADO_L[x.estado]}${x.copias ? ` (${x.copias} ${x.copias === 1 ? "cópia" : "cópias"})` : ""}${m.nossas.includes(l) ? " · canal nosso" : ""}">${NOMES_L[l] || l}</span>`).join("")}</div>
+    ${fez2 ? "" : `<p class="pedir" style="margin:0">Para ver as outras 6 línguas, no terminal: <code>python3 scripts/radar2/malandro_salvos.py ${esc(c.id)} --analise 2</code></p>`}
+  </div>`;
+}
+
+function ficha(c) {
+  const cp = copias(c);
+  const dec = estado.decisoes[c.id];
+  const v0 = c.videos[0];
+  const hoje = c.achado_por.length && c.achado_por.every(a => a.dia === estado.dia);
+  const url = c.handle ? `https://www.youtube.com/${c.handle.startsWith("@") ? c.handle : "@" + c.handle}` : `https://www.youtube.com/channel/${c.id}`;
+  const irmaos = c.irmaos.length ? `<span class="quem">${c.irmaos.slice(0, 6).map(i => `<a href="https://www.youtube.com/channel/${i.id}">${esc(i.nome || "canal")}</a>`).join(", ")}${c.irmaos.length > 6 ? "…" : ""}</span>` : "";
+  return `<article data-id="${c.id}">
+    <div class="cabeca">
+      ${v0 ? `<a href="https://www.youtube.com/watch?v=${v0.id}"><img class="mini" src="${c.mini || ""}" alt="Miniatura de ${esc(v0.t)}" loading="lazy" onerror="this.style.visibility='hidden'"></a>` : `<div class="mini"></div>`}
+      <div>
+        <h2 class="nome"><a href="${url}">${esc(c.nome)}</a></h2>
+        <div class="chips">
+          ${c.classe === "bom" ? `<span class="chip boa">Boa</span>` : `<span class="chip">Promissora</span>`}
+          ${c.tipo ? `<span class="chip">${esc(c.tipo)}</span>` : ""}
+          ${hoje ? `<span class="chip hoje">Novo hoje</span>` : ""}
+        </div>
+        <div class="numero">${mil(c.mediana)} <small>views por vídeo (mediana)</small></div>
+        <div class="sub">${c.dias} ${c.dias === 1 ? "dia" : "dias"} de canal · ${c.n_longos} ${c.n_longos === 1 ? "vídeo" : "vídeos"} · ${c.hits10k} acima de 10 mil · ${mil(c.inscritos)} inscritos</div>
+      </div>
+    </div>
+    <div class="copias ${cp.cls}">${cp.txt}${irmaos}</div>
+    ${linguas(c, dec)}
+    <ul class="videos">
+      ${c.videos.slice(0, 3).map(v => `<li><a href="https://www.youtube.com/watch?v=${v.id}">${esc(v.t)}</a><span class="v">${mil(v.v)}</span></li>`).join("")}
+    </ul>
+    <details><summary>Como o radar achou</summary>${comoAchou(c)}</details>
+    <div class="acoes">
+      ${estado.aba === "decidir"
+        ? `<button class="salvar" data-acao="salvo">Salvar</button><button data-acao="descartado">Descartar</button>`
+        : `<button data-acao="voltar">Voltar para decidir</button>`}
+      ${dec ? `<span class="quando">${dec.acao === "salvo" ? "Salvo" : "Descartado"} em ${new Date(dec.em).toLocaleDateString("pt-BR")}${dec.por ? " por " + esc(dec.por) : ""}</span>` : ""}
+    </div>
+  </article>`;
+}
+
+function desenhar() {
+  const soNovos = document.getElementById("so-novos").checked;
+  const soBoas = document.getElementById("so-boas").checked;
+  const semLotados = document.getElementById("sem-lotados").checked;
+  const ordem = document.getElementById("ordem").value;
+  const daAba = c => (estado.decisoes[c.id]?.acao || "decidir") === estado.aba;
+  for (const aba of ["decidir", "salvo", "descartado"]) {
+    document.querySelector(`#aba-${aba} .n`).textContent = estado.canais.filter(c => (estado.decisoes[c.id]?.acao || "decidir") === aba).length;
+  }
+  let lista = estado.canais.filter(daAba);
+  if (estado.aba === "decidir") {
+    if (soNovos) lista = lista.filter(c => c.achado_por.length && c.achado_por.every(a => a.dia === estado.dia));
+    if (soBoas) lista = lista.filter(c => c.classe === "bom");
+    if (semLotados) lista = lista.filter(c => copias(c).nivel < 3);
+  }
+  const chave = { mediana: c => -c.mediana, idade: c => c.dias, livre: c => copias(c).nivel * 1e9 - c.mediana }[ordem];
+  lista.sort((a, b) => chave(a) - chave(b));
+  const el = document.getElementById("lista");
+  el.innerHTML = lista.length ? lista.map(ficha).join("") : `<p class="vazio">Nada aqui com esses filtros.</p>`;
+}
+
+async function decidir(id, acao) {
+  const anterior = estado.decisoes[id];
+  if (acao === "voltar") delete estado.decisoes[id];
+  else estado.decisoes[id] = { acao, em: new Date().toISOString(), por: estado.nome || null };
+  desenhar();
+  try {
+    if (estado.db) {
+      const doc = estado.db.doc("decisoes/" + id);
+      if (acao === "voltar") await doc.delete(); else await doc.set(estado.decisoes[id]);
+    } else {
+      localStorage.setItem("radar2-decisoes", JSON.stringify(estado.decisoes));
+    }
+  } catch (e) {
+    if (anterior) estado.decisoes[id] = anterior; else delete estado.decisoes[id];
+    desenhar();
+    document.getElementById("aviso-salvar").textContent = "Não consegui guardar a escolha. Tente de novo.";
+  }
+}
+
+document.getElementById("lista").addEventListener("click", e => {
+  const b = e.target.closest("button[data-acao]");
+  if (b) decidir(b.closest("article").dataset.id, b.dataset.acao);
+});
+document.querySelector(".abas").addEventListener("click", e => {
+  const b = e.target.closest("button[data-aba]");
+  if (!b) return;
+  estado.aba = b.dataset.aba;
+  document.querySelectorAll(".abas button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  desenhar();
+});
+["so-novos", "so-boas", "sem-lotados", "ordem"].forEach(id => document.getElementById(id).addEventListener("change", desenhar));
+
+async function iniciar() {
+  const r = await fetch("dados.json");
+  const d = await r.json();
+  estado.canais = d.canais;
+  estado.dia = d.gerado.slice(0, 10);
+  const g = new Date(d.gerado);
+  document.getElementById("gerado").textContent = `Atualizado em ${g.toLocaleDateString("pt-BR")} às ${g.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  const boas = d.canais.filter(c => c.classe === "bom").length;
+  const livres = d.canais.filter(c => copias(c).nivel === 0).length;
+  const novasHoje = d.canais.filter(c => c.achado_por.length && c.achado_por.every(a => a.dia === estado.dia)).length;
+  document.getElementById("placar").innerHTML = [
+    [d.canais.length, "canais com até 21 dias"], [boas, "boas"], [livres, "sem cópia achada"], [novasHoje, "achadas hoje"],
+  ].map(([n, t]) => `<div><b>${n}</b><span>${t}</span></div>`).join("");
+  try { estado.decisoes = JSON.parse(localStorage.getItem("radar2-decisoes") || "{}"); } catch { estado.decisoes = {}; }
+  desenhar();
+
+  // escolhas compartilhadas (salvos e descartados) no banco da página; sem ele, ficam só neste navegador
+  const db = await window.claude?.use?.("db").catch(() => null);
+  if (!db) {
+    document.getElementById("aviso-salvar").textContent = "Suas escolhas ficam só neste navegador.";
+    return;
+  }
+  estado.db = db;
+  db.collection("decisoes").onSnapshot(snap => {
+    const dec = {};
+    snap.docs.forEach(doc => { dec[doc.id] = doc.data(); });
+    estado.decisoes = dec;
+    desenhar();
+  }, () => {
+    document.getElementById("aviso-salvar").textContent = "Perdi a conexão com as escolhas salvas. Recarregue a página.";
+  });
+}
+iniciar().catch(() => {
+  document.getElementById("lista").innerHTML = `<p class="vazio">Não consegui abrir os dados do radar. Recarregue a página.</p>`;
+});
+</script>
+</body>
+</html>

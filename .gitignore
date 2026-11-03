@@ -1,0 +1,10 @@
+.env
+__pycache__/
+.DS_Store
+# resultados de cada pessoa ficam só no computador dela
+estudos/radar2/*.sqlite
+estudos/radar2/*.json
+estudos/radar2/*.log
+estudos/radar2/tela/dados.json
+estudos/radar2/tela/miniaturas/
+estudos/cacador/
