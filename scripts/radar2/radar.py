@@ -61,7 +61,7 @@ def chave():
             k = l.split("=", 1)[1].strip().strip('"')
             if k:
                 return k
-    sys.exit("Falta a chave do YouTube: copie .env.exemplo para .env e preencha YOUTUBE_API_KEY (ver LEIA-ME.md).")
+    sys.exit("Falta a chave do YouTube: copie .env.exemplo para .env e preencha YOUTUBE_API_KEY (ver README.md).")
 
 
 def claude_cli():
@@ -74,7 +74,7 @@ def claude_cli():
                      key=lambda p: [int(x) for x in re.findall(r"\d+", p.split("claude-code-")[1].split("/")[0])])
     if achados:
         return achados[-1]
-    sys.exit("Não achei o Claude Code: ele é usado para filtrar os canais pelo assunto (ver LEIA-ME.md).")
+    sys.exit("Não achei o Claude Code: ele é usado para filtrar os canais pelo assunto (ver README.md).")
 
 
 PONTOS = {"gastos": 0, "acabou": False}
